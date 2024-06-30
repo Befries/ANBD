@@ -197,11 +197,4 @@ public class GameInfo {
     }
     private String thumb;
 
-
-    // too check if two GameInfos are about the same game, check if they have the same gameId
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof GameInfo) return Objects.equals(gameID, ((GameInfo) obj).gameID);
-        return super.equals(obj);
-    }
 }

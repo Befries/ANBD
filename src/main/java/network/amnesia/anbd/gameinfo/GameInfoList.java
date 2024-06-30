@@ -3,12 +3,11 @@ package network.amnesia.anbd.gameinfo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableList;
-import okhttp3.*;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -24,7 +23,7 @@ public class GameInfoList {
     private static final String regex = "(?s)\\{[^\\{\\}]*\\}";
     private static final String urlBase = "https://www.cheapshark.com/api/1.0/deals?";
 
-    public static int DEFAULT_PAGE_SIZE = 10;
+    public static int DEFAULT_MAX_PAGE_SIZE = 60;
     public static SortingCriteria DEFAULT_SORTING_CRITERIA = SortingCriteria.REVIEWS;
 
 
@@ -35,10 +34,49 @@ public class GameInfoList {
 
     // storage of gameInfos
     private final List<GameInfo> gameInfos;
+    private int currentGameInfoIndex = 0;
 
-    // TODO: selector to know which game info is displayed
-    //       and all the query needs of the GameInfoManager
 
+    // uses default values
+    public GameInfoList(String searchTitle) {
+        this(searchTitle, DEFAULT_MAX_PAGE_SIZE, DEFAULT_SORTING_CRITERIA);
+    }
+
+    public GameInfoList(String searchTitle, int quantity, SortingCriteria sortingCriteria) {
+        this.searchTitle = searchTitle;
+        this.quantity = quantity;
+        this.sortingCriteria = sortingCriteria;
+        gameInfos = loadGameInfos();
+    }
+
+    // switch gameInfoIndex, return false if we can't go further
+    public boolean nextGame() {
+        if (currentGameInfoIndex != gameInfos.size() - 1) {
+            currentGameInfoIndex++;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean previousGame() {
+        if (currentGameInfoIndex != 0) {
+            currentGameInfoIndex--;
+            return true;
+        }
+        return false;
+    }
+
+    public GameInfo getCurrentGameInfo() {
+        return gameInfos.get(currentGameInfoIndex);
+    }
+
+    public int getCurrentGameInfoIndex() {
+        return currentGameInfoIndex;
+    }
+
+    public int size() {
+        return gameInfos.size();
+    }
 
     // there's probably a less stupid way to do that with JSONObjects but whatever if it works
     private Stream<String> splitJsonObjects(String jsonString) {
@@ -49,29 +87,32 @@ public class GameInfoList {
                 .map(MatchResult::group);
     }
 
-    // uses default values
-    public GameInfoList(String searchTitle) {
-        this(searchTitle, DEFAULT_PAGE_SIZE, DEFAULT_SORTING_CRITERIA);
-    }
-
-    public GameInfoList(String searchTitle, int quantity, SortingCriteria sortingCriteria) {
-        this.searchTitle = searchTitle;
-        this.quantity = quantity;
-        this.sortingCriteria = sortingCriteria;
-        gameInfos = loadGameInfos();
-    }
-
 
     private List<GameInfo> loadGameInfos() {
         ObjectMapper jsonConverter = new ObjectMapper();
-        return splitJsonObjects(fetchRemote(getLinkQuery())).map((elem) -> {
+        LinkedHashMap<String, ArrayList<GameInfo>> selector = new LinkedHashMap<>();
+
+        splitJsonObjects(fetchRemote(getLinkQuery())).map((elem) -> {
             try {
                 return jsonConverter.readValue(elem, GameInfo.class);
             } catch (JsonProcessingException e) {
                 System.out.println("Invalid Json object");
                 return null; // if the object is invalid, remove it
             }
-        }).filter(Objects::nonNull).toList();
+        }).filter(Objects::nonNull).forEach(x -> {
+            selector.computeIfAbsent(x.getGameID(), r -> {
+                return new ArrayList<GameInfo>();
+            }).add(x);
+        }); // could do this shit with a collector with some dark magic i suppose
+
+        return selector.values().stream().reduce(new ArrayList<GameInfo>(), (buffer, current) -> {
+            // get the one with the max saving, if text rating is null, is not a steam game / is soundtrack
+            if (current.get(0).getSteamRatingText() == null) return buffer;
+            buffer.add(current.stream()
+                    .max((u,v) -> (int) ((Double.parseDouble(u.getSavings()) - Double.parseDouble(v.getSavings()))* 1000))
+                    .get());
+            return buffer;
+        });
     }
 
 
@@ -83,27 +124,15 @@ public class GameInfoList {
     }
 
 
-    private String fetchRemote(String link) {
-        OkHttpClient client = new OkHttpClient().newBuilder()
-                .build();
-        RequestBody body = RequestBody.create(MediaType.parse("text/plain"), "");
-        Request request = new Request.Builder()
-                .url(link)
-                .method("GET", body)
-                .build();
-
-        Response response = null;
+    private String fetchRemote(String url) {
+        Document document = null;
         try {
-            response = client.newCall(request).execute();
+            document = Jsoup.connect(url).ignoreContentType(true).get();
         } catch (IOException e) {
-            // TODO: setup ephemeral message if failure
-            // temporary solution
-            System.out.println("problem while requesting data to the CheapShark API");
+            // TODO: ephemeral message if failure
+            throw new RuntimeException(e);
         }
-
-        // debug:
-        System.out.println(response.message());
-        return response.message();
+        return document.toString();
     }
 
 
