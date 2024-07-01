@@ -16,6 +16,8 @@ import java.util.UUID;
 
 public class GameLookupManager {
 
+    public static final String CHEAP_SHARK_API_LINK = "https://www.cheapshark.com/api/1.0";
+
     private static final HashMap<Guild, GameLookupManager> GUILDS = new HashMap<>();
     private static final String STEAM_LINK = "https://store.steampowered.com/app/";
     private static final String PREVIOUS_INDEX_HEADER = "previous-";
@@ -59,12 +61,13 @@ public class GameLookupManager {
     public void replyMessage(SlashCommandInteractionEvent event, GameInfoList gameInfoList) {
         String id = generateId();
         gameListsBuffer.put(id, gameInfoList);
-
         registerButtonsCallback(id, gameInfoList);
+
         event.replyEmbeds(getInfoEmbed(gameInfoList)).setActionRow(
                 Button.primary(PREVIOUS_INDEX_HEADER + id, "️⬅"),
                 Button.primary(NEXT_INDEX_HEADER + id, "️➡")
         ).queue();
+
     }
 
 

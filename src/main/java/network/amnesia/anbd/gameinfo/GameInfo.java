@@ -1,9 +1,11 @@
 package network.amnesia.anbd.gameinfo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.jetbrains.annotations.NotNull;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import network.amnesia.anbd.Utils;
 
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class GameInfo {
 
@@ -196,5 +198,25 @@ public class GameInfo {
         return this;
     }
     private String thumb;
+
+
+    private double savingsDouble = -1;
+    public double getSavingsDouble() {
+        if (savingsDouble < 0) savingsDouble = Double.parseDouble(savings);
+        return savingsDouble;
+    }
+
+    public boolean isValid() {
+        return !Stream.of(title, storeID, steamAppID, normalPrice, salePrice, savings, steamRatingPercent, steamRatingCount, steamRatingText)
+                .anyMatch(Objects::isNull);
+    }
+
+    public static GameInfo jsonToGameInfo(String jsonObject) {
+        try {
+            return Utils.objectMapper.readValue(jsonObject, GameInfo.class);
+        } catch (JsonProcessingException e) {
+            return null; // if JsonObject is not readable
+        }
+    }
 
 }
