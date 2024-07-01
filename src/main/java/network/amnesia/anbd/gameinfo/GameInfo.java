@@ -199,18 +199,28 @@ public class GameInfo {
     }
     private String thumb;
 
-
+    /**
+     * @return the savings with the double data type
+     */
     private double savingsDouble = -1;
     public double getSavingsDouble() {
         if (savingsDouble < 0) savingsDouble = Double.parseDouble(savings);
         return savingsDouble;
     }
 
+    /**
+     * A {@code GameInfo} is valid if none of the field we use is {@code null}
+     * @return the validity of this {@code GameInfo}
+     */
     public boolean isValid() {
         return !Stream.of(title, storeID, steamAppID, normalPrice, salePrice, savings, steamRatingPercent, steamRatingCount, steamRatingText)
                 .anyMatch(Objects::isNull);
     }
 
+    /**
+     * @param jsonObject json {@code String} containing the {@code GameInfo} to parse
+     * @return the {@code GameInfo} contained in jsonObject
+     */
     public static GameInfo jsonToGameInfo(String jsonObject) {
         try {
             return Utils.objectMapper.readValue(jsonObject, GameInfo.class);

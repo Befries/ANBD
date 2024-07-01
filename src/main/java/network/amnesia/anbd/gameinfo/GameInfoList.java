@@ -7,12 +7,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-// List of the games given for a specific search as well as the information of the which one is currently displayed
 public class GameInfoList {
 
-
     private static final String dealUrlBase = GameLookupManager.CHEAP_SHARK_API_LINK + "/deals?";
-
 
     // search fields (in case we want to display them later)
     private final String searchTitle;
@@ -29,7 +26,10 @@ public class GameInfoList {
         gameInfos = loadGameInfos();
     }
 
-    // switch gameInfoIndex, return false if we can't go further
+    /**
+     * shift the pointer to the next game in the list
+     * @return true if the shift was successful, otherwise it already reached the end of the list
+     */
     public boolean nextGame() {
         if (currentGameInfoIndex != gameInfos.size() - 1) {
             currentGameInfoIndex++;
@@ -38,6 +38,10 @@ public class GameInfoList {
         return false;
     }
 
+    /**
+     * shift the pointer to the previous game in the list
+     * @return {@code true} if the shift was successful, otherwise it is a the beginning of the list
+     */
     public boolean previousGame() {
         if (currentGameInfoIndex != 0) {
             currentGameInfoIndex--;
@@ -46,23 +50,39 @@ public class GameInfoList {
         return false;
     }
 
+    /**
+     * @return the {@code GameInfo} currently pointed
+     */
     public GameInfo getCurrentGameInfo() {
         return gameInfos.get(currentGameInfoIndex);
     }
 
+    /**
+     * @return the pointers position
+     */
     public int getCurrentGameInfoIndex() {
         return currentGameInfoIndex;
     }
 
+    /**
+     * @return the size of the list
+     */
     public int size() {
         return gameInfos.size();
     }
 
+    /**
+     * @return whether this {@code GameListInfo} has content or not (used to discard empty lists)
+     */
     public boolean hasContent() {
         return gameInfos != null;
     }
 
-    // if no matches, return null
+    /**
+     * Load the {@code GameInfo} from the online source and perform some processing to filter the best deals
+     * @return a list of {@code GameInfo}
+     * @throws IOException in case of a problem while fetching data or processing the json
+     */
     private List<GameInfo> loadGameInfos() throws IOException {
 
         List<String> jsonObjects = Utils.splitJsonObjects(Utils.fetchRemote(getLinkQuery()));
@@ -82,6 +102,9 @@ public class GameInfoList {
     }
 
 
+    /**
+     * @return the link to get information from the API
+     */
     private String getLinkQuery() {
         return dealUrlBase +
                 "title=" + searchTitle +

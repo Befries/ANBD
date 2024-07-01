@@ -86,7 +86,7 @@ public class Main {
 
         GameLookupManager.initGameLookupManagers();
 
-        getJDA().getPresence().setActivity(Activity.playing("Bad Piggies"));
+        getJDA().getPresence().setActivity(Activity.playing("Ori and the Blind Forest"));
         LOG.info("ANBD Ready! ({}ms)", System.currentTimeMillis() - APP_START_TIME);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(-1)));
