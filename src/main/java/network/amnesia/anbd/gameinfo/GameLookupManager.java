@@ -5,6 +5,9 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.requests.RestAction;
+import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
+import net.dv8tion.jda.api.utils.messages.MessageRequest;
 import network.amnesia.anbd.Constants;
 import network.amnesia.anbd.Main;
 import network.amnesia.anbd.command.Button;
@@ -57,25 +60,32 @@ public class GameLookupManager {
         return guild;
     }
 
-    // TODO: remove buttons if end of list
+
     public void replyMessage(SlashCommandInteractionEvent event, GameInfoList gameInfoList) {
         String id = generateId();
         gameListsBuffer.put(id, gameInfoList);
         registerButtonsCallback(id, gameInfoList);
 
-        event.replyEmbeds(getInfoEmbed(gameInfoList)).setActionRow(
-                Button.primary(PREVIOUS_INDEX_HEADER + id, "️⬅"),
-                Button.primary(NEXT_INDEX_HEADER + id, "️➡")
-        ).queue();
+        setSwitchButtons(event.replyEmbeds(getInfoEmbed(gameInfoList)), gameInfoList, id).queue();
+    }
 
+    private void refreshMessage(ButtonInteractionEvent event, GameInfoList gameInfoList, String id) {
+        setSwitchButtons(event.editMessageEmbeds(getInfoEmbed(gameInfoList)), gameInfoList, id).queue();
     }
 
 
-    private void refreshMessage(String id, GameInfoList gameInfoList, ButtonInteractionEvent event) {
-        event.editMessageEmbeds(getInfoEmbed(gameInfoList)).setActionRow(
-                Button.primary(PREVIOUS_INDEX_HEADER + id, "️⬅"),
-                Button.primary(NEXT_INDEX_HEADER + id, "️➡")
-        ).queue();
+    // reset action row each time, don't put the button that's useless
+    private <T extends MessageRequest<T>> T setSwitchButtons(T reply, GameInfoList gameInfoList, String id) {
+        if (gameInfoList.getCurrentGameInfoIndex() <= 0) {
+            return (T) reply.setActionRow(Button.primary(NEXT_INDEX_HEADER + id, "️➡"));
+        } else if (gameInfoList.getCurrentGameInfoIndex() >= gameInfoList.size() - 1) {
+            return (T) reply.setActionRow(Button.primary(PREVIOUS_INDEX_HEADER + id, "️⬅"));
+        } else {
+            return (T) reply.setActionRow(
+                    Button.primary(PREVIOUS_INDEX_HEADER + id, "️⬅"),
+                    Button.primary(NEXT_INDEX_HEADER + id, "️➡")
+            );
+        }
     }
 
 
@@ -101,18 +111,17 @@ public class GameLookupManager {
     }
 
 
-    // TODO: add price lookup button to get a more precise knowledge of the element (potential feature)
     private void registerButtonsCallback(String id, GameInfoList gameInfoList) {
         ButtonManager buttonManager = Main.getButtonManager();
 
         buttonManager.registerCallback(PREVIOUS_INDEX_HEADER + id, e -> {
             if (!gameInfoList.previousGame()) e.replyFormat("%s Can't go before", Constants.X_EMOTE).setEphemeral(true).queue();
-            else refreshMessage(id, gameInfoList, e);
+            else refreshMessage(e, gameInfoList, id);
         });
 
         buttonManager.registerCallback(NEXT_INDEX_HEADER + id, e -> {
             if (!gameInfoList.nextGame()) e.replyFormat("%s Can't go further", Constants.X_EMOTE).setEphemeral(true).queue();
-            else refreshMessage(id, gameInfoList, e);
+            else refreshMessage(e, gameInfoList, id);
         });
     }
 
