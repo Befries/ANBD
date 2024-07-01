@@ -1,19 +1,23 @@
 package network.amnesia.anbd.gameinfo;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
-import net.dv8tion.jda.api.requests.RestAction;
-import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import net.dv8tion.jda.api.utils.messages.MessageRequest;
 import network.amnesia.anbd.Constants;
 import network.amnesia.anbd.Main;
+import network.amnesia.anbd.Utils;
 import network.amnesia.anbd.command.Button;
 import network.amnesia.anbd.command.ButtonManager;
 import org.apache.commons.collections4.map.LinkedMap;
+import org.apache.logging.log4j.LogManager;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.UUID;
 
@@ -21,11 +25,12 @@ public class GameLookupManager {
 
     public static final String CHEAP_SHARK_API_LINK = "https://www.cheapshark.com/api/1.0";
 
+    private static HashMap<String, String> storeMap;
     private static final HashMap<Guild, GameLookupManager> GUILDS = new HashMap<>();
     private static final String STEAM_LINK = "https://store.steampowered.com/app/";
     private static final String PREVIOUS_INDEX_HEADER = "previous-";
     private static final String NEXT_INDEX_HEADER = "next-";
-    private static final int MAX_LISTS = 10;
+    private static final int MAX_LISTS = 20;
 
     private final Guild guild;
     private final LinkedMap<String, GameInfoList> gameListsBuffer;
@@ -61,6 +66,33 @@ public class GameLookupManager {
     }
 
 
+    public static void initGameLookupManagers() {
+        fetchStores();
+    }
+
+    private static void fetchStores() {
+        String jsonStores;
+        try {
+            jsonStores = Utils.fetchRemote("https://www.cheapshark.com/api/1.0/stores");
+        } catch (IOException e) {
+            LogManager.getLogger().info("error arise while fetching stores' infos");
+            return;
+        }
+        JsonNode jsonNode; // we know for fact it's an ArrayNode
+        try {
+            jsonNode = (ArrayNode) Utils.objectMapper.readTree(jsonStores);
+        } catch (JsonProcessingException e) {
+            LogManager.getLogger().info("error arise while processing stores' infos");
+            return;
+        }
+
+        storeMap = new HashMap<>();
+        jsonNode.forEach(subNode -> {
+            storeMap.put(subNode.get("storeID").asText(), subNode.get("storeName").asText());
+        });
+        LogManager.getLogger().info("stores names fetched");
+    }
+
     public void replyMessage(SlashCommandInteractionEvent event, GameInfoList gameInfoList) {
         String id = generateId();
         gameListsBuffer.put(id, gameInfoList);
@@ -76,12 +108,13 @@ public class GameLookupManager {
 
     // reset action row each time, don't put the button that's useless
     private <T extends MessageRequest<T>> T setSwitchButtons(T reply, GameInfoList gameInfoList, String id) {
+        if (gameInfoList.size() == 1) return reply;
         if (gameInfoList.getCurrentGameInfoIndex() <= 0) {
-            return (T) reply.setActionRow(Button.primary(NEXT_INDEX_HEADER + id, "️➡"));
+            return reply.setActionRow(Button.primary(NEXT_INDEX_HEADER + id, "️➡"));
         } else if (gameInfoList.getCurrentGameInfoIndex() >= gameInfoList.size() - 1) {
-            return (T) reply.setActionRow(Button.primary(PREVIOUS_INDEX_HEADER + id, "️⬅"));
+            return reply.setActionRow(Button.primary(PREVIOUS_INDEX_HEADER + id, "️⬅"));
         } else {
-            return (T) reply.setActionRow(
+            return reply.setActionRow(
                     Button.primary(PREVIOUS_INDEX_HEADER + id, "️⬅"),
                     Button.primary(NEXT_INDEX_HEADER + id, "️➡")
             );
@@ -94,12 +127,13 @@ public class GameLookupManager {
         EmbedBuilder builder = new EmbedBuilder();
 
         int indexNormalized = gameInfoList.getCurrentGameInfoIndex() + 1;
+        if (storeMap == null) fetchStores();
 
         builder.setAuthor(indexNormalized + "/" + gameInfoList.size())
                 .setTitle(gameInfo.getTitle(), STEAM_LINK + gameInfo.getSteamAppID())
-                .setThumbnail(gameInfo.getThumb());
+                .setThumbnail(gameInfo.getThumb())
+                .setDescription("cheapest with " + storeMap.get(gameInfo.getStoreID()));
 
-        // TODO: add the cheapest stores (storeId to link with the store name, load stores on bot startup)
         builder.addField("Normal Price", "$" + gameInfo.getNormalPrice(), true)
                 .addField("Sale Price", "$" + gameInfo.getSalePrice(), true)
                 .addField("Savings", gameInfo.getSavings() + "%", true)
@@ -111,6 +145,8 @@ public class GameLookupManager {
     }
 
 
+    // TODO: possible update, change buttons of outdated research to 'outdated buttons' which sends a reply to say they
+    //       can't be used anymore >< currently says interaction failure (button doesn't have a callback anymore)
     private void registerButtonsCallback(String id, GameInfoList gameInfoList) {
         ButtonManager buttonManager = Main.getButtonManager();
 

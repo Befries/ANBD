@@ -13,6 +13,7 @@ import network.amnesia.anbd.command.ButtonManager;
 import network.amnesia.anbd.command.CommandManager;
 import network.amnesia.anbd.configs.ConfigManager;
 import network.amnesia.anbd.factories.FactoryFactory;
+import network.amnesia.anbd.gameinfo.GameLookupManager;
 import network.amnesia.anbd.music.MusicManager;
 import network.amnesia.anbd.otism.RandomEvilInsultSender;
 import org.apache.logging.log4j.LogManager;
@@ -82,6 +83,8 @@ public class Main {
         ConfigManager.noop();
 
         MusicManager.registerSources();
+
+        GameLookupManager.initGameLookupManagers();
 
         getJDA().getPresence().setActivity(Activity.playing("Bad Piggies"));
         LOG.info("ANBD Ready! ({}ms)", System.currentTimeMillis() - APP_START_TIME);
